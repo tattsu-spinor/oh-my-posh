@@ -630,6 +630,7 @@ func TestGitUpstream(t *testing.T) {
 		{Case: "Bitbucket", Expected: "BB", Upstream: "bitbucket.org/test"},
 		{Case: "Azure DevOps", Expected: "AD", Upstream: "dev.azure.com/test"},
 		{Case: "Azure DevOps Dos", Expected: "AD", Upstream: "test.visualstudio.com"},
+		{Case: "CodeCommit", Expected: "AC", Upstream: "codecommit::eu-west-1://test-repository"},
 		{Case: "Gitstash", Expected: "G", Upstream: "gitstash.com/test"},
 		{Case: "My custom server", Expected: "CU", Upstream: "mycustom.server/test"},
 	}
@@ -644,6 +645,7 @@ func TestGitUpstream(t *testing.T) {
 			GitlabIcon:      "GL",
 			BitbucketIcon:   "BB",
 			AzureDevOpsIcon: "AD",
+			CodeCommit:      "AC",
 			GitIcon:         "G",
 			UpstreamIcons: map[string]string{
 				"mycustom.server": "CU",
@@ -942,6 +944,7 @@ func TestGitCommit(t *testing.T) {
 			ce:jan@ohmyposh.dev
 			at:1673176335
 			su:docs(error): you can't use cross segment properties
+			ha:1234567891011121314
 			`,
 			Expected: &Commit{
 				Author: &User{
@@ -954,6 +957,7 @@ func TestGitCommit(t *testing.T) {
 				},
 				Subject:   "docs(error): you can't use cross segment properties",
 				Timestamp: time.Unix(1673176335, 0),
+				Sha:       "1234567891011121314",
 			},
 		},
 		{
@@ -997,7 +1001,7 @@ func TestGitCommit(t *testing.T) {
 
 	for _, tc := range cases {
 		env := new(mock.MockedEnvironment)
-		env.MockGitCommand("", tc.Output, "log", "-1", "--pretty=format:an:%an%nae:%ae%ncn:%cn%nce:%ce%nat:%at%nsu:%s")
+		env.MockGitCommand("", tc.Output, "log", "-1", "--pretty=format:an:%an%nae:%ae%ncn:%cn%nce:%ce%nat:%at%nsu:%s%nha:%H")
 		g := &Git{
 			scm: scm{
 				env:     env,

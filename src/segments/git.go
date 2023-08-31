@@ -21,6 +21,7 @@ type Commit struct {
 	Committer *User
 	Subject   string
 	Timestamp time.Time
+	Sha       string
 }
 
 type User struct {
@@ -92,12 +93,14 @@ const (
 	MergeIcon properties.Property = "merge_icon"
 	// UpstreamIcons allows to add custom upstream icons
 	UpstreamIcons properties.Property = "upstream_icons"
-	// GithubIcon shows√ when upstream is github
+	// GithubIcon shows when upstream is github
 	GithubIcon properties.Property = "github_icon"
 	// BitbucketIcon shows  when upstream is bitbucket
 	BitbucketIcon properties.Property = "bitbucket_icon"
 	// AzureDevOpsIcon shows  when upstream is azure devops
 	AzureDevOpsIcon properties.Property = "azure_devops_icon"
+	// CodeCommit shows  when upstream is aws codecommit
+	CodeCommit properties.Property = "codecommit_icon"
 	// GitlabIcon shows when upstream is gitlab
 	GitlabIcon properties.Property = "gitlab_icon"
 	// GitIcon shows when the upstream can't be identified
@@ -195,7 +198,7 @@ func (g *Git) Commit() *Commit {
 		Author:    &User{},
 		Committer: &User{},
 	}
-	commitBody := g.getGitCommandOutput("log", "-1", "--pretty=format:an:%an%nae:%ae%ncn:%cn%nce:%ce%nat:%at%nsu:%s")
+	commitBody := g.getGitCommandOutput("log", "-1", "--pretty=format:an:%an%nae:%ae%ncn:%cn%nce:%ce%nat:%at%nsu:%s%nha:%H")
 	splitted := strings.Split(strings.TrimSpace(commitBody), "\n")
 	for _, line := range splitted {
 		line = strings.TrimSpace(line)
@@ -219,6 +222,8 @@ func (g *Git) Commit() *Commit {
 			}
 		case "su:":
 			g.commit.Subject = line
+		case "ha:":
+			g.commit.Sha = line
 		}
 	}
 	return g.commit
@@ -422,6 +427,11 @@ func (g *Git) cleanUpstreamURL(url string) string {
 		path = strings.TrimSuffix(path, ".git")
 		return fmt.Sprintf("https://%s/%s", match["URL"], path)
 	}
+	// codecommit::region-identifier-id://repo-name
+	match = regex.FindNamedRegexMatch(`codecommit::(?P<URL>[a-z0-9-]+)://(?P<PATH>[\w\.@\:/\-~]+)`, url)
+	if len(match) != 0 {
+		return fmt.Sprintf("https://%s.console.aws.amazon.com/codesuite/codecommit/repositories/%s/browse?region=%s", match["URL"], match["PATH"], match["URL"])
+	}
 	// user@host.xz:/path/to/repo.git
 	match = regex.FindNamedRegexMatch(`.*@(?P<URL>.*):(?P<PATH>.*).git`, url)
 	if len(match) == 0 {
@@ -454,6 +464,7 @@ func (g *Git) getUpstreamIcon() string {
 		"bitbucket":        {BitbucketIcon, "\uF171 "},
 		"dev.azure.com":    {AzureDevOpsIcon, "\uEBE8 "},
 		"visualstudio.com": {AzureDevOpsIcon, "\uEBE8 "},
+		"codecommit":       {CodeCommit, "\uF270 "},
 	}
 	for key, value := range defaults {
 		if strings.Contains(g.UpstreamURL, key) {

@@ -131,8 +131,9 @@ New-Module -Name "oh-my-posh-core" -ScriptBlock {
                 return
             }
             $position = $host.UI.RawUI.CursorPosition
+            $terminalWidth = $Host.UI.RawUI.WindowSize.Width
             $cleanPSWD = Get-CleanPSWD
-            $standardOut = @(Start-Utf8Process $script:OMPExecutable @("print", "tooltip", "--status=$script:ErrorCode", "--shell=$script:ShellName", "--pswd=$cleanPSWD", "--config=$env:POSH_THEME", "--command=$command", "--shell-version=$script:PSVersion"))
+            $standardOut = @(Start-Utf8Process $script:OMPExecutable @("print", "tooltip", "--status=$script:ErrorCode", "--shell=$script:ShellName", "--pswd=$cleanPSWD", "--config=$env:POSH_THEME", "--command=$command", "--shell-version=$script:PSVersion", "--column=$($position.X)", "--terminal-width=$terminalWidth"))
             # ignore an empty tooltip
             if ($standardOut -eq '') {
                 return
@@ -414,6 +415,13 @@ Example:
         # set a sane default when the value can't be retrieved
         if (-not $terminalWidth) {
             $terminalWidth = 0
+        }
+
+        # in some cases we have an empty $script:NoExitCode
+        # this is a workaround to make sure we always have a value
+        # see https://github.com/JanDeDobbeleer/oh-my-posh/issues/4128
+        if ($null -eq $script:NoExitCode) {
+            $script:NoExitCode = $true
         }
 
         # set the cursor positions, they are zero based so align with other platforms

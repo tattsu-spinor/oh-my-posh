@@ -10,23 +10,24 @@ import (
 	mock2 "github.com/stretchr/testify/mock"
 )
 
-func TestGlob(t *testing.T) {
+func TestHResult(t *testing.T) {
 	cases := []struct {
 		Case        string
 		Expected    string
 		Template    string
 		ShouldError bool
 	}{
-		{Case: "valid glob", Expected: "OK", Template: `{{ if glob "*.go" }}OK{{ else }}NOK{{ end }}`},
-		{Case: "invalid glob", Expected: "NOK", Template: `{{ if glob "package.json" }}OK{{ else }}NOK{{ end }}`},
-		{Case: "multiple glob", Expected: "NOK", Template: `{{ if or (glob "package.json") (glob "node_modules") }}OK{{ else }}NOK{{ end }}`},
+		{Case: "Windows exit code", Expected: "0x8A150014", Template: `{{ hresult -1978335212 }}`},
+		{Case: "Not a number", Template: `{{ hresult "no number" }}`, ShouldError: true},
 	}
 
 	env := &mock.MockedEnvironment{}
-	env.On("DebugF", mock2.Anything, mock2.Anything).Return(nil)
 	env.On("TemplateCache").Return(&platform.TemplateCache{
 		Env: make(map[string]string),
 	})
+	env.On("Error", mock2.Anything)
+	env.On("Debug", mock2.Anything)
+	env.On("DebugF", mock2.Anything, mock2.Anything).Return(nil)
 	for _, tc := range cases {
 		tmpl := &Text{
 			Template: tc.Template,

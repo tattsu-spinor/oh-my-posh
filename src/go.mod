@@ -1,6 +1,6 @@
 module github.com/jandedobbeleer/oh-my-posh/src
 
-go 1.20
+go 1.21
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161
@@ -19,14 +19,14 @@ require (
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/sergi/go-diff v1.3.1 // indirect
-	github.com/shirou/gopsutil/v3 v3.23.6
+	github.com/shirou/gopsutil/v3 v3.23.7
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/stretchr/testify v1.8.4
 	github.com/wayneashleyberry/terminal-dimensions v1.1.0
 	golang.org/x/crypto v0.8.0 // indirect
-	golang.org/x/image v0.9.0
-	golang.org/x/sys v0.10.0
-	golang.org/x/text v0.11.0
+	golang.org/x/image v0.11.0
+	golang.org/x/sys v0.11.0
+	golang.org/x/text v0.12.0
 	gopkg.in/ini.v1 v1.67.0
 )
 
@@ -34,7 +34,7 @@ require (
 	github.com/ConradIrwin/font v0.0.0-20210318200717-ce8d41cc0732
 	github.com/charmbracelet/bubbles v0.16.1
 	github.com/charmbracelet/bubbletea v0.24.2
-	github.com/charmbracelet/lipgloss v0.7.1
+	github.com/charmbracelet/lipgloss v0.8.0
 	github.com/hashicorp/hcl/v2 v2.17.0
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/spf13/cobra v1.7.0
@@ -80,7 +80,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.15.1 // indirect
+	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/sahilm/fuzzy v0.1.0 // indirect

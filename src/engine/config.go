@@ -53,6 +53,7 @@ type Config struct {
 	PWD                      string                 `json:"pwd,omitempty"`
 	Var                      map[string]interface{} `json:"var,omitempty"`
 	DisableCursorPositioning bool                   `json:"disable_cursor_positioning,omitempty"`
+	PatchPwshBleed           bool                   `json:"patch_pwsh_bleed,omitempty"`
 
 	// Deprecated
 	OSC99 bool `json:"osc99,omitempty"`
@@ -133,12 +134,17 @@ func loadConfig(env platform.Environment) *Config {
 	cfg.origin = configFile
 	cfg.Format = strings.TrimPrefix(filepath.Ext(configFile), ".")
 	cfg.env = env
-	if cfg.Format == "yml" {
+
+	// support different extensions
+	switch cfg.Format {
+	case "yml":
 		cfg.Format = YAML
+	case "jsonc":
+		cfg.Format = JSON
 	}
 
-	config.AddDriver(yaml.Driver)
-	config.AddDriver(json.Driver)
+	config.AddDriver(yaml.Driver.WithAliases("yaml", "yml"))
+	config.AddDriver(json.Driver.WithAliases("json", "jsonc"))
 	config.AddDriver(toml.Driver)
 
 	if config.Default().IsEmpty() {
