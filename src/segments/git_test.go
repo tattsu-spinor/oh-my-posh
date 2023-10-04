@@ -436,6 +436,8 @@ func TestSetGitStatus(t *testing.T) {
 		ExpectedUpstreamGone bool
 		ExpectedAhead        int
 		ExpectedBehind       int
+		Rebase               bool
+		Merge                bool
 	}{
 		{
 			Case: "all different options on working and staging, no remote",
@@ -535,6 +537,40 @@ func TestSetGitStatus(t *testing.T) {
 			ExpectedRef:          "branch-is-gone",
 			ExpectedUpstreamGone: true,
 		},
+		{
+			Case: "rebase with 2 merge conflicts",
+			Output: `
+			# branch.oid 1234567891011121314
+			# branch.head rework-git-status
+			# branch.upstream origin/rework-git-status
+			# branch.ab +0 -0
+			1 AA N...
+			1 AA N...
+			`,
+			ExpectedUpstream: "origin/rework-git-status",
+			ExpectedHash:     "1234567",
+			ExpectedRef:      "rework-git-status",
+			Rebase:           true,
+			ExpectedStaging:  &GitStatus{ScmStatus: ScmStatus{Unmerged: 2}},
+		},
+		{
+			Case: "merge with 4 merge conflicts",
+			Output: `
+			# branch.oid 1234567891011121314
+			# branch.head rework-git-status
+			# branch.upstream origin/rework-git-status
+			# branch.ab +0 -0
+			1 AA N...
+			1 AA N...
+			1 AA N...
+			1 AA N...
+			`,
+			ExpectedUpstream: "origin/rework-git-status",
+			ExpectedHash:     "1234567",
+			ExpectedRef:      "rework-git-status",
+			Merge:            true,
+			ExpectedStaging:  &GitStatus{ScmStatus: ScmStatus{Unmerged: 4}},
+		},
 	}
 	for _, tc := range cases {
 		env := new(mock.MockedEnvironment)
@@ -554,6 +590,8 @@ func TestSetGitStatus(t *testing.T) {
 		if tc.ExpectedStaging == nil {
 			tc.ExpectedStaging = &GitStatus{}
 		}
+		g.Rebase = tc.Rebase
+		g.Merge = tc.Merge
 		tc.ExpectedStaging.Formats = map[string]string{}
 		tc.ExpectedWorking.Formats = map[string]string{}
 		g.setGitStatus()
@@ -1010,5 +1048,60 @@ func TestGitCommit(t *testing.T) {
 		}
 		got := g.Commit()
 		assert.Equal(t, tc.Expected, got, tc.Case)
+	}
+}
+
+func TestGitRemotes(t *testing.T) {
+	cases := []struct {
+		Case     string
+		Expected int
+		Config   string
+	}{
+		{
+			Case:     "Empty config file",
+			Expected: 0,
+		},
+		{
+			Case:     "Two remotes",
+			Expected: 2,
+			Config: `
+[remote "origin"]
+	url = git@github.com:JanDeDobbeleer/test.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[remote "upstream"]
+	url = git@github.com:microsoft/test.git
+	fetch = +refs/heads/*:refs/remotes/upstream/*
+`,
+		},
+		{
+			Case:     "One remote",
+			Expected: 1,
+			Config: `
+[remote "origin"]
+	url = git@github.com:JanDeDobbeleer/test.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`,
+		},
+		{
+			Case:     "Broken config",
+			Expected: 0,
+			Config:   "{{}}",
+		},
+	}
+
+	for _, tc := range cases {
+		env := new(mock.MockedEnvironment)
+		env.On("FileContent", "config").Return(tc.Config)
+
+		g := &Git{
+			scm: scm{
+				props:   properties.Map{},
+				realDir: "foo",
+				env:     env,
+			},
+		}
+
+		got := g.Remotes()
+		assert.Equal(t, tc.Expected, len(got), tc.Case)
 	}
 }

@@ -28,13 +28,34 @@ func (e *Engine) Primary() string {
 
 	// cache a pointer to the color cycle
 	cycle = &e.Config.Cycle
+	var cancelNewline, didRender bool
+
 	for i, block := range e.Config.Blocks {
-		var cancelNewline bool
+		// do not print a leading newline when we're at the first row and the prompt is cleared
 		if i == 0 {
 			row, _ := e.Env.CursorPosition()
 			cancelNewline = e.Env.Flags().Cleared || e.Env.Flags().PromptCount == 1 || row == 1
 		}
-		e.renderBlock(block, cancelNewline)
+
+		// skip setting a newline when we didn't print anything yet
+		if i != 0 {
+			cancelNewline = !didRender
+		}
+
+		// only render rprompt for shells where we need it from the primary prompt
+		renderRPrompt := true
+		switch e.Env.Shell() {
+		case shell.ELVISH, shell.FISH, shell.NU, shell.XONSH, shell.CMD:
+			renderRPrompt = false
+		}
+
+		if block.Type == RPrompt && !renderRPrompt {
+			continue
+		}
+
+		if e.renderBlock(block, cancelNewline) {
+			didRender = true
+		}
 	}
 
 	if len(e.Config.ConsoleTitleTemplate) > 0 && !e.Env.Flags().Plain {
@@ -69,7 +90,7 @@ func (e *Engine) Primary() string {
 		prompt := fmt.Sprintf("PS1=\"%s\"", strings.ReplaceAll(e.string(), `"`, `\"`))
 		prompt += fmt.Sprintf("\nRPROMPT=\"%s\"", e.rprompt)
 		return prompt
-	case shell.PWSH, shell.PWSH5, shell.GENERIC, shell.NU:
+	case shell.PWSH, shell.PWSH5, shell.GENERIC:
 		e.writeRPrompt()
 	case shell.BASH:
 		space, OK := e.canWriteRightBlock(true)

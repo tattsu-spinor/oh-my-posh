@@ -44,7 +44,7 @@ func (s *GitStatus) add(code string) {
 		s.Added++
 	case "?":
 		s.Untracked++
-	case "U":
+	case "U", "AA":
 		s.Unmerged++
 	case "M", "R", "C", "m":
 		s.Modified++
@@ -135,6 +135,11 @@ type Git struct {
 	IsWorkTree     bool
 	IsBare         bool
 	User           *User
+	Detached       bool
+	Merge          bool
+	Rebase         bool
+	CherryPick     bool
+	Revert         bool
 
 	// needed for posh-git support
 	poshgit       bool
@@ -244,6 +249,10 @@ func (g *Git) StashCount() int {
 
 func (g *Git) Kraken() string {
 	root := g.getGitCommandOutput("rev-list", "--max-parents=0", "HEAD")
+	if strings.Contains(root, "\n") {
+		root = strings.Split(root, "\n")[0]
+	}
+
 	if len(g.RawUpstreamURL) == 0 {
 		if len(g.Upstream) == 0 {
 			g.Upstream = "origin"
@@ -323,11 +332,15 @@ func (g *Git) setDir(dir string) {
 
 func (g *Git) hasWorktree(gitdir *platform.FileInfo) bool {
 	g.rootDir = gitdir.Path
-	dirPointer := strings.Trim(g.env.FileContent(gitdir.Path), " \r\n")
-	matches := regex.FindNamedRegexMatch(`^gitdir: (?P<dir>.*)$`, dirPointer)
-	if matches == nil || matches["dir"] == "" {
+	content := g.env.FileContent(gitdir.Path)
+	content = strings.Trim(content, " \r\n")
+	matches := regex.FindNamedRegexMatch(`^gitdir: (?P<dir>.*)$`, content)
+
+	if matches == nil || len(matches["dir"]) == 0 {
+		g.env.Debug("No matches found, directory isn't a worktree")
 		return false
 	}
+
 	// if we open a worktree file in a WSL shared folder, we have to convert it back
 	// to the mounted path
 	g.workingDir = g.convertToLinuxPath(matches["dir"])
@@ -335,17 +348,18 @@ func (g *Git) hasWorktree(gitdir *platform.FileInfo) bool {
 	// in worktrees, the path looks like this: gitdir: path/.git/worktrees/branch
 	// strips the last .git/worktrees part
 	// :ind+5 = index + /.git
-	ind := strings.LastIndex(g.workingDir, "/.git/worktrees")
+	ind := strings.LastIndex(g.workingDir, ".git/worktrees")
 	if ind > -1 {
 		gitDir := filepath.Join(g.workingDir, "gitdir")
-		g.rootDir = g.workingDir[:ind+5]
+		g.rootDir = g.workingDir[:ind+4]
 		g.realDir = strings.TrimSuffix(g.env.FileContent(gitDir), ".git\n")
 		g.IsWorkTree = true
 		return true
 	}
+
 	// in submodules, the path looks like this: gitdir: ../.git/modules/test-submodule
 	// we need the parent folder to detect where the real .git folder is
-	ind = strings.LastIndex(g.workingDir, "/.git/modules")
+	ind = strings.LastIndex(g.workingDir, ".git/modules")
 	if ind > -1 {
 		g.rootDir = resolveGitPath(gitdir.ParentFolder, g.workingDir)
 		// this might be both a worktree and a submodule, where the path would look like
@@ -375,6 +389,7 @@ func (g *Git) hasWorktree(gitdir *platform.FileInfo) bool {
 		g.realDir = gitFolder
 		return true
 	}
+
 	return false
 }
 
@@ -484,6 +499,17 @@ func (g *Git) setGitStatus() {
 		if len(status) <= 4 {
 			return
 		}
+
+		// map conflicts separately when in a merge or rebase
+		if g.Rebase || g.Merge {
+			conflict := "AA"
+			full := status[2:4]
+			if full == conflict {
+				g.Staging.add(conflict)
+				return
+			}
+		}
+
 		workingCode := status[3:4]
 		stagingCode := status[2:3]
 		g.Working.add(workingCode)
@@ -551,6 +577,7 @@ func (g *Git) getGitCommandOutput(args ...string) string {
 func (g *Git) setGitHEADContext() {
 	branchIcon := g.props.GetString(BranchIcon, "\uE0A0")
 	if g.Ref == DETACHED {
+		g.Detached = true
 		g.setPrettyHEADName()
 	} else {
 		head := g.formatHEAD(g.Ref)
@@ -577,6 +604,7 @@ func (g *Git) setGitHEADContext() {
 	}
 
 	if g.env.HasFolder(g.workingDir + "/rebase-merge") {
+		g.Rebase = true
 		origin := getPrettyNameOrigin("rebase-merge/head-name")
 		onto := g.getGitRefFileSymbolicName("rebase-merge/onto")
 		onto = g.formatHEAD(onto)
@@ -586,7 +614,9 @@ func (g *Git) setGitHEADContext() {
 		g.HEAD = fmt.Sprintf("%s%s onto %s%s (%s/%s) at %s", icon, origin, branchIcon, onto, step, total, g.HEAD)
 		return
 	}
+
 	if g.env.HasFolder(g.workingDir + "/rebase-apply") {
+		g.Rebase = true
 		origin := getPrettyNameOrigin("rebase-apply/head-name")
 		step := g.FileContents(g.workingDir, "rebase-apply/next")
 		total := g.FileContents(g.workingDir, "rebase-apply/last")
@@ -594,9 +624,12 @@ func (g *Git) setGitHEADContext() {
 		g.HEAD = fmt.Sprintf("%s%s (%s/%s) at %s", icon, origin, step, total, g.HEAD)
 		return
 	}
+
 	// merge
 	commitIcon := g.props.GetString(CommitIcon, "\uF417")
+
 	if g.hasGitFile("MERGE_MSG") {
+		g.Merge = true
 		icon := g.props.GetString(MergeIcon, "\uE727 ")
 		mergeContext := g.FileContents(g.workingDir, "MERGE_MSG")
 		matches := regex.FindNamedRegexMatch(`Merge (remote-tracking )?(?P<type>branch|commit|tag) '(?P<theirs>.*)'`, mergeContext)
@@ -618,23 +651,28 @@ func (g *Git) setGitHEADContext() {
 			return
 		}
 	}
+
 	// sequencer status
 	// see if a cherry-pick or revert is in progress, if the user has committed a
 	// conflict resolution with 'git commit' in the middle of a sequence of picks or
 	// reverts then CHERRY_PICK_HEAD/REVERT_HEAD will not exist so we have to read
 	// the todo file.
 	if g.hasGitFile("CHERRY_PICK_HEAD") {
+		g.CherryPick = true
 		sha := g.FileContents(g.workingDir, "CHERRY_PICK_HEAD")
 		cherry := g.props.GetString(CherryPickIcon, "\uE29B ")
 		g.HEAD = fmt.Sprintf("%s%s%s onto %s", cherry, commitIcon, g.formatSHA(sha), formatDetached())
 		return
 	}
+
 	if g.hasGitFile("REVERT_HEAD") {
+		g.Revert = true
 		sha := g.FileContents(g.workingDir, "REVERT_HEAD")
 		revert := g.props.GetString(RevertIcon, "\uF0E2 ")
 		g.HEAD = fmt.Sprintf("%s%s%s onto %s", revert, commitIcon, g.formatSHA(sha), formatDetached())
 		return
 	}
+
 	if g.hasGitFile("sequencer/todo") {
 		todo := g.FileContents(g.workingDir, "sequencer/todo")
 		matches := regex.FindNamedRegexMatch(`^(?P<action>p|pick|revert)\s+(?P<sha>\S+)`, todo)
@@ -643,16 +681,19 @@ func (g *Git) setGitHEADContext() {
 			sha := matches["sha"]
 			switch action {
 			case "p", "pick":
+				g.CherryPick = true
 				cherry := g.props.GetString(CherryPickIcon, "\uE29B ")
 				g.HEAD = fmt.Sprintf("%s%s%s onto %s", cherry, commitIcon, g.formatSHA(sha), formatDetached())
 				return
 			case "revert":
+				g.Revert = true
 				revert := g.props.GetString(RevertIcon, "\uF0E2 ")
 				g.HEAD = fmt.Sprintf("%s%s%s onto %s", revert, commitIcon, g.formatSHA(sha), formatDetached())
 				return
 			}
 		}
 	}
+
 	g.HEAD = formatDetached()
 }
 
@@ -741,6 +782,30 @@ func (g *Git) getRemoteURL() string {
 		return url
 	}
 	return g.getGitCommandOutput("remote", "get-url", upstream)
+}
+
+func (g *Git) Remotes() map[string]string {
+	var remotes = make(map[string]string)
+
+	location := filepath.Join(g.rootDir, "config")
+	config := g.env.FileContent(location)
+	cfg, err := ini.Load([]byte(config))
+	if err != nil {
+		return remotes
+	}
+
+	for _, section := range cfg.Sections() {
+		if !strings.HasPrefix(section.Name(), "remote ") {
+			continue
+		}
+
+		name := strings.TrimPrefix(section.Name(), "remote ")
+		name = strings.Trim(name, "\"")
+		url := section.Key("url").String()
+		url = g.cleanUpstreamURL(url)
+		remotes[name] = url
+	}
+	return remotes
 }
 
 func (g *Git) getUntrackedFilesMode() string {

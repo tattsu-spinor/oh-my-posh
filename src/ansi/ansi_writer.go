@@ -86,13 +86,12 @@ type Writer struct {
 	builder strings.Builder
 	length  int
 
-	foreground        Color
-	background        Color
-	currentForeground Color
-	currentBackground Color
-	runes             []rune
-	transparent       bool
-	invisible         bool
+	foreground  Color
+	background  Color
+	current     ColorHistory
+	runes       []rune
+	transparent bool
+	invisible   bool
 
 	shell                 string
 	format                string
@@ -303,7 +302,8 @@ func (w *Writer) Write(background, foreground, text string) {
 			colorOverride = false
 		}
 		if colorOverride {
-			w.currentBackground, w.currentForeground = w.asAnsiColors(match[BG], match[FG])
+			w.current.Add(w.asAnsiColors(match[BG], match[FG]))
+			// w.current.Background(), w.current.Foreground() = w.asAnsiColors(match[BG], match[FG])
 		}
 	}
 	w.writeSegmentColors()
@@ -342,9 +342,8 @@ func (w *Writer) Write(background, foreground, text string) {
 	// reset colors
 	w.writeEscapedAnsiString(resetStyle.End)
 
-	// reset current
-	w.currentBackground = ""
-	w.currentForeground = ""
+	// pop last color from the stack
+	w.current.Pop()
 }
 
 func (w *Writer) String() (string, int) {
@@ -378,11 +377,11 @@ func (w *Writer) writeSegmentColors() {
 	// use correct starting colors
 	bg := w.background
 	fg := w.foreground
-	if !w.currentBackground.IsEmpty() {
-		bg = w.currentBackground
+	if !w.current.Background().IsEmpty() {
+		bg = w.current.Background()
 	}
-	if !w.currentForeground.IsEmpty() {
-		fg = w.currentForeground
+	if !w.current.Foreground().IsEmpty() {
+		fg = w.current.Foreground()
 	}
 
 	// ignore processing fully tranparent colors
@@ -408,45 +407,14 @@ func (w *Writer) writeSegmentColors() {
 	}
 
 	// set current colors
-	w.currentBackground = bg
-	w.currentForeground = fg
+	w.current.Add(bg, fg)
 }
 
 func (w *Writer) writeColorOverrides(match map[string]string, background string, i int) int {
 	position := i
 	// check color reset first
 	if match[ANCHOR] == resetStyle.AnchorEnd {
-		// make sure to reset the colors if needed
-		position += len([]rune(resetStyle.AnchorEnd)) - 1
-
-		// do not reset when colors are identical
-		if w.currentBackground == w.background && w.currentForeground == w.foreground {
-			return position
-		}
-
-		// do not restore colors at the end of the string, we print it anyways
-		if position == len(w.runes)-1 {
-			return position
-		}
-
-		if w.transparent {
-			w.writeEscapedAnsiString(transparentEnd)
-		}
-
-		if w.background.IsClear() {
-			w.writeEscapedAnsiString(backgroundStyle.End)
-		}
-
-		if w.currentBackground != w.background && !w.background.IsClear() {
-			w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.background))
-		}
-
-		if (w.currentForeground != w.foreground || w.transparent) && !w.foreground.IsClear() {
-			w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.foreground))
-		}
-
-		w.transparent = false
-		return position
+		return w.endColorOverride(position)
 	}
 
 	position += len([]rune(match[ANCHOR])) - 1
@@ -465,48 +433,116 @@ func (w *Writer) writeColorOverrides(match map[string]string, background string,
 	if match[FG] == Transparent && len(match[BG]) == 0 {
 		match[BG] = background
 	}
-	w.currentBackground, w.currentForeground = w.asAnsiColors(match[BG], match[FG])
+
+	bg, fg := w.asAnsiColors(match[BG], match[FG])
 
 	// ignore processing fully tranparent colors
-	w.invisible = w.currentForeground.IsTransparent() && w.currentBackground.IsTransparent()
+	w.invisible = fg.IsTransparent() && bg.IsTransparent()
 	if w.invisible {
 		return position
 	}
 
 	// make sure we have colors
-	if w.currentForeground.IsEmpty() {
-		w.currentForeground = w.foreground
+	if fg.IsEmpty() {
+		fg = w.foreground
 	}
-	if w.currentBackground.IsEmpty() {
-		w.currentBackground = w.background
+	if bg.IsEmpty() {
+		bg = w.background
 	}
 
-	if w.currentForeground.IsTransparent() && len(w.TerminalBackground) != 0 {
+	w.current.Add(bg, fg)
+
+	if w.current.Foreground().IsTransparent() && len(w.TerminalBackground) != 0 {
 		background := w.getAnsiFromColorString(w.TerminalBackground, false)
 		w.writeEscapedAnsiString(fmt.Sprintf(colorise, background))
-		w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.currentBackground.ToForeground()))
+		w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.current.Background().ToForeground()))
 		return position
 	}
 
-	if w.currentForeground.IsTransparent() && !w.currentBackground.IsTransparent() {
+	if w.current.Foreground().IsTransparent() && !w.current.Background().IsTransparent() {
 		w.transparent = true
-		w.writeEscapedAnsiString(fmt.Sprintf(transparent, w.currentBackground))
+		w.writeEscapedAnsiString(fmt.Sprintf(transparent, w.current.Background()))
 		return position
 	}
 
-	if w.currentBackground != w.background {
+	if w.current.Background() != w.background {
 		// end the colors in case we have a transparent background
-		if w.currentBackground.IsTransparent() {
+		if w.current.Background().IsTransparent() {
 			w.writeEscapedAnsiString(backgroundEnd)
 		} else {
-			w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.currentBackground))
+			w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.current.Background()))
 		}
 	}
 
-	if w.currentForeground != w.foreground {
-		w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.currentForeground))
+	if w.current.Foreground() != w.foreground {
+		w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.current.Foreground()))
 	}
 
+	return position
+}
+
+func (w *Writer) endColorOverride(position int) int {
+	// make sure to reset the colors if needed
+	position += len([]rune(resetStyle.AnchorEnd)) - 1
+
+	// do not restore colors at the end of the string, we print it anyways
+	if position == len(w.runes)-1 {
+		w.current.Pop()
+		return position
+	}
+
+	// reset colors to previous when we have more than 1 in stack
+	// as soon as we have  more than 1, we can pop the last one
+	// and print the previous override as it wasn't ended yet
+	if w.current.Len() > 1 {
+		fg := w.current.Foreground()
+		bg := w.current.Background()
+
+		w.current.Pop()
+
+		previousBg := w.current.Background()
+		previousFg := w.current.Foreground()
+
+		if w.transparent {
+			w.writeEscapedAnsiString(transparentEnd)
+		}
+
+		if previousBg != bg {
+			w.writeEscapedAnsiString(fmt.Sprintf(colorise, previousBg))
+		}
+
+		if previousFg != fg {
+			w.writeEscapedAnsiString(fmt.Sprintf(colorise, previousFg))
+		}
+
+		return position
+	}
+
+	// pop the last colors from the stack
+	defer w.current.Pop()
+
+	// do not reset when colors are identical
+	if w.current.Background() == w.background && w.current.Foreground() == w.foreground {
+		return position
+	}
+
+	if w.transparent {
+		w.writeEscapedAnsiString(transparentEnd)
+	}
+
+	if w.background.IsClear() {
+		w.writeEscapedAnsiString(backgroundStyle.End)
+	}
+
+	if w.current.Background() != w.background && !w.background.IsClear() {
+		w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.background))
+	}
+
+	if (w.current.Foreground() != w.foreground || w.transparent) && !w.foreground.IsClear() {
+		w.writeEscapedAnsiString(fmt.Sprintf(colorise, w.foreground))
+	}
+
+	w.transparent = false
 	return position
 }
 

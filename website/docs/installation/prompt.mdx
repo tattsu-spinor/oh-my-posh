@@ -104,7 +104,7 @@ exec fish
 <TabItem value="nu">
 
 :::caution
-Oh My Posh requires Nushell v0.78.0 or higher.
+Oh My Posh requires Nushell v0.84.0 or higher.
 :::
 
 Add the following line to the Nushell env file (`$nu.env-path`):
@@ -151,7 +151,7 @@ New-Item -Path $PROFILE -Type File -Force
 ```
 
 In this scenario, it can also be that PowerShell blocks running local scripts. To solve that, set PowerShell
-to only require remote scripts to be signed using `Set-ExecutionPolicy RemoteSigned`, or [sign the profile][sign].
+to only require remote scripts to be signed using `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine`, or [sign the profile][sign].
 :::
 
 Then add the following line.

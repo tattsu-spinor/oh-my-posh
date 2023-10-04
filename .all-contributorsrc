@@ -1872,6 +1872,98 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "ercpereda",
+      "name": "Ernesto R. C. Pereda",
+      "avatar_url": "https://avatars.githubusercontent.com/u/13546685?v=4",
+      "profile": "https://github.com/ercpereda",
+      "contributions": [
+        "code",
+        "design",
+        "doc"
+      ]
+    },
+    {
+      "login": "0Ky",
+      "name": "ｃｒｙｐｔｉｘ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/16103757?v=4",
+      "profile": "https://github.com/0Ky",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "ehawman",
+      "name": "Evan Hawman",
+      "avatar_url": "https://avatars.githubusercontent.com/u/52979227?v=4",
+      "profile": "https://github.com/ehawman",
+      "contributions": [
+        "design"
+      ]
+    },
+    {
+      "login": "ZerdoX-x",
+      "name": "Mark Lansky",
+      "avatar_url": "https://avatars.githubusercontent.com/u/49815452?v=4",
+      "profile": "https://zerdox.dev",
+      "contributions": [
+        "design"
+      ]
+    },
+    {
+      "login": "pulsation",
+      "name": "pulsation",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1838397?v=4",
+      "profile": "https://github.com/pulsation",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "oriionn",
+      "name": "orionsource",
+      "avatar_url": "https://avatars.githubusercontent.com/u/38093786?v=4",
+      "profile": "https://oriondev.fr",
+      "contributions": [
+        "design"
+      ]
+    },
+    {
+      "login": "CesarGBkR",
+      "name": "Cesar Garduño",
+      "avatar_url": "https://avatars.githubusercontent.com/u/99093357?v=4",
+      "profile": "https://github.com/CesarGBkR",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "Adi-vig",
+      "name": "Aditya Sakhare",
+      "avatar_url": "https://avatars.githubusercontent.com/u/123308369?v=4",
+      "profile": "https://github.com/Adi-vig",
+      "contributions": [
+        "design"
+      ]
+    },
+    {
+      "login": "deepak-dev-96",
+      "name": "Deepak Dev",
+      "avatar_url": "https://avatars.githubusercontent.com/u/134447761?v=4",
+      "profile": "https://github.com/deepak-dev-96",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "warrenbuckley",
+      "name": "Warren Buckley",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1389894?v=4",
+      "profile": "http://creativewebspecialist.co.uk",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
